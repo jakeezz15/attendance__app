@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "174979934876",
+    "project_id": "attendancetracker-fa9db",
+    "storage_bucket": "attendancetracker-fa9db.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:174979934876:android:ae9ab785f6a610bde6db59",
+        "android_client_info": {
+          "package_name": "com.example.attendance_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDU4-0Vm-E89VjXNSGNn1KQI9i5mdUXDwo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
