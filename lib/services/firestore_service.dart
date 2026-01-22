@@ -41,7 +41,7 @@ class FirestoreService {
         "name": name,
         "action": action,
         "dayKey": day,
-        if (makeIn) "gathering": gathering ?? "Others",
+        "gathering": gathering,
         "ts": FieldValue.serverTimestamp(),
       });
 
@@ -52,7 +52,7 @@ class FirestoreService {
         "isIn": makeIn,
         "lastAction": action,
         "lastTs": FieldValue.serverTimestamp(),
-        if (makeIn) "gathering": gathering ?? "Others",
+        "gathering": gathering,
       }, SetOptions(merge: true));
     });
   }

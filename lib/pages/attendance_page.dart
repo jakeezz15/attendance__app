@@ -43,6 +43,7 @@ class _SearchBarHeader extends StatelessWidget {
 class _AttendancePageState extends State<AttendancePage> {
   final _service = FirestoreService();
   String _search = "";
+  String? passgathering;
 
   Future<String?> _askPurposeOfVisit(BuildContext context) async {
     const options = ["PM", "WS", "TG", "Others"];
@@ -290,6 +291,8 @@ class _AttendancePageState extends State<AttendancePage> {
                                 );
                                 if (gathering == null) return; // cancelled
 
+                                passgathering = gathering;
+
                                 await _service.setAttendance(
                                   memberId: memberId,
                                   name: name,
@@ -324,6 +327,7 @@ class _AttendancePageState extends State<AttendancePage> {
                                   memberId: memberId,
                                   name: name,
                                   makeIn: false,
+                                  gathering: passgathering,
                                 );
                               }
                             },
