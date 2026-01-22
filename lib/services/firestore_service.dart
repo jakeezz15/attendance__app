@@ -26,6 +26,7 @@ class FirestoreService {
     required String memberId,
     required String name,
     required bool makeIn,
+    String? gathering,
   }) async {
     final day = dayKey(DateTime.now());
     final action = makeIn ? "IN" : "OUT";
@@ -40,6 +41,7 @@ class FirestoreService {
         "name": name,
         "action": action,
         "dayKey": day,
+        if (makeIn) "gathering": gathering ?? "Others",
         "ts": FieldValue.serverTimestamp(),
       });
 
@@ -50,6 +52,7 @@ class FirestoreService {
         "isIn": makeIn,
         "lastAction": action,
         "lastTs": FieldValue.serverTimestamp(),
+        if (makeIn) "gathering": gathering ?? "Others",
       }, SetOptions(merge: true));
     });
   }

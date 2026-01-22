@@ -163,6 +163,7 @@ class _AttendanceLogsPageState extends State<AttendanceLogsPage> {
               final action = (data["action"] as String?) ?? "-";
               final ts = data["ts"] as Timestamp?;
               final dt = ts?.toDate();
+              final ga = data["gathering"] as String?;
 
               final timeStr = dt == null
                   ? "-"
@@ -181,7 +182,7 @@ class _AttendanceLogsPageState extends State<AttendanceLogsPage> {
                   name,
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
-                subtitle: Text(timeStr),
+                subtitle: Text("$timeStr • Purpose: $ga"),
                 trailing: Text(
                   action,
                   style: TextStyle(

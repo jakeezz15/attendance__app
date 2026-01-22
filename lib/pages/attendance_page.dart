@@ -44,6 +44,44 @@ class _AttendancePageState extends State<AttendancePage> {
   final _service = FirestoreService();
   String _search = "";
 
+  Future<String?> _askPurposeOfVisit(BuildContext context) async {
+    const options = ["PM", "WS", "TG", "Others"];
+    String selected = options.first;
+
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text("Purpose of Visit?"),
+            content: DropdownButtonFormField<String>(
+              value: selected,
+              items: options
+                  .map((o) => DropdownMenuItem(value: o, child: Text(o)))
+                  .toList(),
+              onChanged: (v) {
+                if (v == null) return;
+                setState(() => selected = v);
+              },
+              decoration: const InputDecoration(border: OutlineInputBorder()),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, null),
+                child: const Text("Cancel"),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, selected),
+                child: const Text("OK"),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final todayKey = _service.dayKey(DateTime.now());
@@ -247,10 +285,16 @@ class _AttendancePageState extends State<AttendancePage> {
                             isInByMember: isInByMember,
                             onTapMember: (memberId, name, isIn) async {
                               if (!isIn) {
+                                final gathering = await _askPurposeOfVisit(
+                                  context,
+                                );
+                                if (gathering == null) return; // cancelled
+
                                 await _service.setAttendance(
                                   memberId: memberId,
                                   name: name,
                                   makeIn: true,
+                                  gathering: gathering, // ✅ store purpose
                                 );
                                 return;
                               }
