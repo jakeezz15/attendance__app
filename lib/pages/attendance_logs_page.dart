@@ -182,7 +182,7 @@ class _AttendanceLogsPageState extends State<AttendanceLogsPage> {
                   name,
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
-                subtitle: Text("$timeStr • Purpose: $ga"),
+                subtitle: Text("$timeStr • Purpose: ${ga ?? 'Logged out'}"),
                 trailing: Text(
                   action,
                   style: TextStyle(
