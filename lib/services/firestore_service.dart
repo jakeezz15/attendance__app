@@ -73,7 +73,7 @@ class FirestoreService {
         "isIn": makeIn,
         "lastAction": action,
         "lastTs": FieldValue.serverTimestamp(),
-        if (makeIn) "gathering": gathering ?? "Others",
+        "gathering": gathering,
       }, SetOptions(merge: true));
     });
   }

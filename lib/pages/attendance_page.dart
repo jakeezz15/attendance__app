@@ -20,6 +20,7 @@ class _AttendancePageState extends State<AttendancePage> {
   late Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> _membersFuture;
 
   String _search = "";
+  String? passgathering;
 
   @override
   void initState() {
@@ -280,6 +281,8 @@ class _AttendancePageState extends State<AttendancePage> {
                                 );
                                 if (gathering == null) return;
 
+                                passgathering = gathering;
+
                                 await _service.setAttendance(
                                   memberId: memberId,
                                   name: name,
@@ -315,6 +318,7 @@ class _AttendancePageState extends State<AttendancePage> {
                                   memberId: memberId,
                                   name: name,
                                   makeIn: false,
+                                  gathering: passgathering,
                                 );
                               }
                             },
