@@ -1,10 +1,12 @@
-import 'package:attendance_app/pages/attendance_logs_page.dart';
-import 'package:attendance_app/pages/import_members_page.dart';
-import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
+
 import '../services/firestore_service.dart';
 import '../services/admin_auth_service.dart';
+
 import 'admin_login_page.dart';
+import 'attendance_logs_page.dart';
+import 'import_members_page.dart';
 
 class AttendancePage extends StatefulWidget {
   const AttendancePage({super.key});
@@ -13,37 +15,25 @@ class AttendancePage extends StatefulWidget {
   State<AttendancePage> createState() => _AttendancePageState();
 }
 
-class _SearchBarHeader extends StatelessWidget {
-  final ValueChanged<String> onChanged;
-  final String initialValue;
-
-  const _SearchBarHeader({required this.onChanged, required this.initialValue});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-        child: TextField(
-          controller: TextEditingController(text: initialValue),
-          decoration: InputDecoration(
-            hintText: "Search name...",
-            prefixIcon: const Icon(Icons.search),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-            isDense: true,
-          ),
-          onChanged: onChanged,
-        ),
-      ),
-    );
-  }
-}
-
 class _AttendancePageState extends State<AttendancePage> {
   final _service = FirestoreService();
+  late Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> _membersFuture;
+
   String _search = "";
 
+  @override
+  void initState() {
+    super.initState();
+    _membersFuture = _service.getMembersCached();
+  }
+
+  Future<void> _refreshMembers() async {
+    setState(() {
+      _membersFuture = _service.getMembersCached();
+    });
+  }
+
+  // ✅ Purpose dialog (IN only)
   Future<String?> _askPurposeOfVisit(BuildContext context) async {
     const options = ["PM", "WS", "TG", "Others"];
     String selected = options.first;
@@ -82,92 +72,85 @@ class _AttendancePageState extends State<AttendancePage> {
     );
   }
 
+  // ✅ Sort groups numerically when group is stored as "1", "2", "10"
+  List<String> _sortGroupKeys(Set<String> keys) {
+    final list = keys.toList();
+    list.sort((a, b) {
+      if (a == "Ungrouped") return 1;
+      if (b == "Ungrouped") return -1;
+
+      final ai = int.tryParse(a);
+      final bi = int.tryParse(b);
+
+      if (ai != null && bi != null) return ai.compareTo(bi);
+      if (ai != null) return -1;
+      if (bi != null) return 1;
+      return a.compareTo(b);
+    });
+    return list;
+  }
+
   @override
   Widget build(BuildContext context) {
     final todayKey = _service.dayKey(DateTime.now());
 
     return Scaffold(
-      body: StreamBuilder<QuerySnapshot>(
+      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: _service.presenceTodayStream(todayKey),
         builder: (context, presSnap) {
+          // memberId -> isIn
           final Map<String, bool> isInByMember = {};
-
           if (presSnap.hasData) {
             for (final doc in presSnap.data!.docs) {
-              final data = doc.data() as Map<String, dynamic>;
+              final data = doc.data();
               final memberId = data["memberId"] as String?;
               final isIn = data["isIn"] as bool?;
               if (memberId != null) isInByMember[memberId] = isIn ?? false;
             }
           }
 
-          return StreamBuilder<QuerySnapshot>(
-            stream: _service.membersStream(),
+          return FutureBuilder<
+            List<QueryDocumentSnapshot<Map<String, dynamic>>>
+          >(
+            future: _membersFuture,
             builder: (context, memSnap) {
+              if (memSnap.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
               if (memSnap.hasError) {
                 return Center(child: Text("Error: ${memSnap.error}"));
               }
-              if (!memSnap.hasData) {
-                return const Center(child: CircularProgressIndicator());
-              }
 
-              // 1) Filter active
-              final all = memSnap.data!.docs.where((d) {
-                final data = d.data() as Map<String, dynamic>;
-                return (data["active"] as bool?) ?? true;
-              }).toList();
+              final allMembers = memSnap.data ?? [];
 
-              // 2) Filter by search text
-              final query = _search.trim().toLowerCase();
-              final filtered = all.where((d) {
-                final data = d.data() as Map<String, dynamic>;
+              // Search filter (name)
+              final q = _search.trim().toLowerCase();
+              final filtered = allMembers.where((doc) {
+                final data = doc.data();
                 final name = (data["name"] as String? ?? "").toLowerCase();
-                return query.isEmpty || name.contains(query);
+                return q.isEmpty || name.contains(q);
               }).toList();
 
-              // 3) Group by "group" field
-              final Map<String, List<QueryDocumentSnapshot>> grouped = {};
+              // Grouping
+              final Map<
+                String,
+                List<QueryDocumentSnapshot<Map<String, dynamic>>>
+              >
+              grouped = {};
               for (final doc in filtered) {
-                final data = doc.data() as Map<String, dynamic>;
-                final groupName = (data["group"] as String?)?.trim();
-                final key = (groupName == null || groupName.isEmpty)
-                    ? "Ungrouped"
-                    : groupName;
-
+                final data = doc.data();
+                final g = (data["group"] as String?)?.trim();
+                final key = (g == null || g.isEmpty) ? "Ungrouped" : g;
                 grouped.putIfAbsent(key, () => []).add(doc);
               }
 
-              // 4) Sort groups by name
-              final groupKeys = grouped.keys.toList()
-                ..sort((a, b) {
-                  if (a == "Ungrouped") return 1; // always last
-                  if (b == "Ungrouped") return -1;
+              final groupKeys = _sortGroupKeys(grouped.keys.toSet());
 
-                  final int? ai = int.tryParse(a);
-                  final int? bi = int.tryParse(b);
-
-                  // If both are valid numbers → numeric sort
-                  if (ai != null && bi != null) {
-                    return ai.compareTo(bi);
-                  }
-
-                  // If only one is numeric → numeric comes first
-                  if (ai != null) return -1;
-                  if (bi != null) return 1;
-
-                  // Fallback: normal string sort
-                  return a.compareTo(b);
-                });
-
-              // 5) Sort members in each group by name
-              for (final key in groupKeys) {
-                grouped[key]!.sort((a, b) {
-                  final an =
-                      (((a.data() as Map<String, dynamic>)["name"]) ?? "")
-                          as String;
-                  final bn =
-                      (((b.data() as Map<String, dynamic>)["name"]) ?? "")
-                          as String;
+              // Sort members within each group by name
+              for (final k in groupKeys) {
+                grouped[k]!.sort((a, b) {
+                  final an = (a.data()["name"] as String?) ?? "";
+                  final bn = (b.data()["name"] as String?) ?? "";
                   return an.compareTo(bn);
                 });
               }
@@ -179,6 +162,11 @@ class _AttendancePageState extends State<AttendancePage> {
                       pinned: true,
                       title: const Text("Attendance"),
                       actions: [
+                        IconButton(
+                          icon: const Icon(Icons.refresh),
+                          tooltip: "Refresh members",
+                          onPressed: _refreshMembers,
+                        ),
                         IconButton(
                           icon: const Icon(Icons.person_add_alt_1),
                           tooltip: "Import Members",
@@ -198,7 +186,7 @@ class _AttendancePageState extends State<AttendancePage> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => AttendanceLogsPage(),
+                                builder: (_) => const AttendanceLogsPage(),
                               ),
                             );
                           },
@@ -231,7 +219,6 @@ class _AttendancePageState extends State<AttendancePage> {
 
                             if (confirm == true) {
                               await AdminAuthService.logout();
-
                               if (!context.mounted) return;
 
                               Navigator.pushAndRemoveUntil(
@@ -239,7 +226,7 @@ class _AttendancePageState extends State<AttendancePage> {
                                 MaterialPageRoute(
                                   builder: (_) => const AdminLoginPage(),
                                 ),
-                                (route) => false, // clears back stack
+                                (route) => false,
                               );
                             }
                           },
@@ -276,29 +263,33 @@ class _AttendancePageState extends State<AttendancePage> {
                           ),
                         ]
                       : groupKeys.map((groupName) {
-                          final members =
-                              grouped[groupName] ??
-                              const <QueryDocumentSnapshot>[];
+                          final members = grouped[groupName] ?? const [];
+                          final headerText = groupName == "Ungrouped"
+                              ? "Ungrouped"
+                              : "Group $groupName";
+
                           return _GroupSection(
-                            title: "Group $groupName",
+                            title: headerText,
                             members: members,
                             isInByMember: isInByMember,
                             onTapMember: (memberId, name, isIn) async {
+                              // IN -> ask purpose
                               if (!isIn) {
                                 final gathering = await _askPurposeOfVisit(
                                   context,
                                 );
-                                if (gathering == null) return; // cancelled
+                                if (gathering == null) return;
 
                                 await _service.setAttendance(
                                   memberId: memberId,
                                   name: name,
                                   makeIn: true,
-                                  gathering: gathering, // ✅ store purpose
+                                  gathering: gathering,
                                 );
                                 return;
                               }
 
+                              // OUT -> confirm only
                               final confirm = await showDialog<bool>(
                                 context: context,
                                 builder: (_) => AlertDialog(
@@ -339,36 +330,9 @@ class _AttendancePageState extends State<AttendancePage> {
   }
 }
 
-class _PinnedHeaderDelegate extends SliverPersistentHeaderDelegate {
-  final double height;
-  final Widget child;
-
-  _PinnedHeaderDelegate({required this.height, required this.child});
-
-  @override
-  double get minExtent => height;
-
-  @override
-  double get maxExtent => height;
-
-  @override
-  Widget build(
-    BuildContext context,
-    double shrinkOffset,
-    bool overlapsContent,
-  ) {
-    return child;
-  }
-
-  @override
-  bool shouldRebuild(covariant _PinnedHeaderDelegate oldDelegate) {
-    return oldDelegate.height != height || oldDelegate.child != child;
-  }
-}
-
 class _GroupSection extends StatelessWidget {
   final String title;
-  final List<QueryDocumentSnapshot> members;
+  final List<QueryDocumentSnapshot<Map<String, dynamic>>> members;
   final Map<String, bool> isInByMember;
   final Future<void> Function(String memberId, String name, bool isIn)
   onTapMember;
@@ -385,7 +349,6 @@ class _GroupSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Group header
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Text(
@@ -394,25 +357,21 @@ class _GroupSection extends StatelessWidget {
           ),
         ),
 
-        // Grid for this group (responsive)
+        // ✅ Responsive grid: portrait 1, landscape phone 2, tablet 3
         LayoutBuilder(
           builder: (context, constraints) {
             final width = constraints.maxWidth;
 
-            // Decide columns based on width
             int crossAxisCount;
             double childAspectRatio;
 
             if (width >= 900) {
-              // Tablets / large screens (landscape)
               crossAxisCount = 3;
               childAspectRatio = 2.8;
             } else if (width >= 600) {
-              // Phones landscape
               crossAxisCount = 2;
               childAspectRatio = 3.2;
             } else {
-              // Portrait phones
               crossAxisCount = 1;
               childAspectRatio = 8;
             }
@@ -429,7 +388,7 @@ class _GroupSection extends StatelessWidget {
               ),
               itemBuilder: (context, i) {
                 final doc = members[i];
-                final data = doc.data() as Map<String, dynamic>;
+                final data = doc.data();
                 final memberId = doc.id;
                 final name = (data["name"] as String?) ?? "No Name";
                 final isIn = isInByMember[memberId] ?? false;
