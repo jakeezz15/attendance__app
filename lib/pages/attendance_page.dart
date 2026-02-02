@@ -101,12 +101,19 @@ class _AttendancePageState extends State<AttendancePage> {
         builder: (context, presSnap) {
           // memberId -> isIn
           final Map<String, bool> isInByMember = {};
+
+          int headcount = 0;
+
           if (presSnap.hasData) {
             for (final doc in presSnap.data!.docs) {
               final data = doc.data();
               final memberId = data["memberId"] as String?;
-              final isIn = data["isIn"] as bool?;
-              if (memberId != null) isInByMember[memberId] = isIn ?? false;
+              final isIn = data["isIn"] as bool? ?? false;
+
+              if (memberId != null) {
+                isInByMember[memberId] = isIn;
+                if (isIn) headcount++;
+              }
             }
           }
 
@@ -234,20 +241,52 @@ class _AttendancePageState extends State<AttendancePage> {
                         ),
                       ],
                       bottom: PreferredSize(
-                        preferredSize: const Size.fromHeight(64),
+                        preferredSize: const Size.fromHeight(108),
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                          child: TextField(
-                            decoration: InputDecoration(
-                              hintText: "Search name...",
-                              prefixIcon: const Icon(Icons.search),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(14),
+                          child: Column(
+                            children: [
+                              // ✅ Headcount row
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 10,
+                                  horizontal: 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(14),
+                                  color: Theme.of(context).colorScheme.surface,
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.people),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      "People Inside: $headcount",
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                              isDense: true,
-                              filled: true,
-                            ),
-                            onChanged: (v) => setState(() => _search = v),
+                              const SizedBox(height: 10),
+
+                              // ✅ Search bar (still pinned)
+                              TextField(
+                                decoration: InputDecoration(
+                                  hintText: "Search name...",
+                                  prefixIcon: const Icon(Icons.search),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  isDense: true,
+                                  filled: true,
+                                ),
+                                onChanged: (v) => setState(() => _search = v),
+                              ),
+                            ],
                           ),
                         ),
                       ),

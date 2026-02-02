@@ -43,29 +43,38 @@ class FirestoreService {
     required String memberId,
     required String name,
     required bool makeIn,
-    String? gathering, // only for IN
+    String? gathering, // provided only for IN
   }) async {
     final day = dayKey(DateTime.now());
     final action = makeIn ? "IN" : "OUT";
 
-    // Presence is per day (green status). If you later want per gathering, tell me.
+    // Presence per day per member (your current design)
     final presenceId = "${day}_$memberId";
 
     final logRef = _fs.collection("attendance_logs").doc();
     final presenceRef = _fs.collection("presence").doc(presenceId);
 
     await _fs.runTransaction((tx) async {
-      // Always append a log
+      String? finalGathering = gathering;
+
+      // ✅ If logging OUT, reuse gathering from presence
+      if (!makeIn) {
+        final presenceSnap = await tx.get(presenceRef);
+        final data = presenceSnap.data() as Map<String, dynamic>?;
+        finalGathering = (data?["gathering"] as String?) ?? "Others";
+      }
+
+      // Always write a log record (IN and OUT)
       tx.set(logRef, {
         "memberId": memberId,
         "name": name,
         "action": action,
         "dayKey": day,
         "ts": FieldValue.serverTimestamp(),
-        if (makeIn) "gathering": gathering ?? "Others",
+        "gathering": finalGathering ?? "Others", // ✅ now always present
       });
 
-      // Update today's state
+      // Update presence state
       tx.set(presenceRef, {
         "memberId": memberId,
         "name": name,
@@ -73,7 +82,8 @@ class FirestoreService {
         "isIn": makeIn,
         "lastAction": action,
         "lastTs": FieldValue.serverTimestamp(),
-        "gathering": gathering,
+        // ✅ Only set/overwrite gathering when IN
+        if (makeIn) "gathering": finalGathering ?? "Others",
       }, SetOptions(merge: true));
     });
   }

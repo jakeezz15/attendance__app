@@ -40,7 +40,7 @@ class _AttendanceLogsPageState extends State<AttendanceLogsPage> {
     }
 
     final rows = <List<dynamic>>[
-      ["Date", "Time", "Name", "Action", "MemberId"],
+      ["Date", "Time", "Name", "Gathering", "Action", "MemberId"],
     ];
 
     for (final d in docs) {
@@ -51,6 +51,7 @@ class _AttendanceLogsPageState extends State<AttendanceLogsPage> {
         ts == null ? dayKey : DateFormat("yyyy-MM-dd").format(ts),
         ts == null ? "" : DateFormat("HH:mm:ss").format(ts),
         data["name"] ?? "",
+        data["gathering"] ?? "Others",
         data["action"] ?? "",
         data["memberId"] ?? "",
       ]);
